@@ -48,19 +48,28 @@ class AirCargoProblem(Problem):
             list of Action objects
         """
 
-        # TODO create concrete Action objects based on the domain action schema for: Load, Unload, and Fly
-        # concrete actions definition: specific literal action that does not include variables as with the schema
-        # for example, the action schema 'Load(c, p, a)' can represent the concrete actions 'Load(C1, P1, SFO)'
-        # or 'Load(C2, P2, JFK)'.  The actions for the planning problem must be concrete because the problems in
-        # forward search and Planning Graphs must use Propositional Logic
-
         def load_actions():
             """Create all concrete Load actions and return a list
 
             :return: list of Action objects
             """
             loads = []
-            # TODO create all load ground actions from the domain Load action
+            for cargo in self.cargos:
+                for plane in self.planes:
+                    for airport in self.airports:
+                        action = expr("Load({}, {}, {})".format(cargo, plane, airport))
+
+                        precondition = [
+                            [expr("At({}, {})".format(cargo, airport)), expr("At({}, {})".format(plane, airport))],
+                            []
+                        ]
+
+                        effect = [
+                            [expr("In({}, {})".format(cargo, plane))],
+                            [expr("At({}, {})".format(cargo, airport))]
+                        ]
+
+                        loads.append(Action(action, precondition, effect))
             return loads
 
         def unload_actions():
@@ -69,7 +78,23 @@ class AirCargoProblem(Problem):
             :return: list of Action objects
             """
             unloads = []
-            # TODO create all Unload ground actions from the domain Unload action
+            for cargo in self.cargos:
+                for plane in self.planes:
+                    for airport in self.airports:
+                        action = expr("Unload({}, {}, {})".format(cargo, plane, airport))
+
+                        precondition = [
+                            [expr("In({}, {})".format(cargo, plane)), expr("At({}, {})".format(plane, airport))],
+                            []
+                        ]
+
+                        effect = [
+                            [expr("At({}, {})".format(cargo, airport))],
+                            [expr("In({}, {})".format(cargo, plane))]
+                        ]
+
+                        unloads.append(Action(action, precondition, effect))
+
             return unloads
 
         def fly_actions():
@@ -103,8 +128,14 @@ class AirCargoProblem(Problem):
             e.g. 'FTTTFF'
         :return: list of Action objects
         """
-        # TODO implement
         possible_actions = []
+        kb = PropKB()
+        kb.tell(decode_state(state, self.state_map).pos_sentence())
+
+        for a in self.actions_list:
+            if set(a.precond_pos).issubset(set(kb.clauses)) and set(a.precond_neg).isdisjoint(set(kb.clauses)):
+                possible_actions.append(a)
+
         return possible_actions
 
     def result(self, state: str, action: Action):
@@ -116,8 +147,15 @@ class AirCargoProblem(Problem):
         :param action: Action applied
         :return: resulting state after action
         """
-        # TODO implement
         new_state = FluentState([], [])
+        old_state = decode_state(state, self.state_map)
+
+        new_state.pos.extend([s for s in old_state.pos if s not in action.effect_rem])
+        new_state.pos.extend([s for s in action.effect_add if s not in new_state.pos])
+
+        new_state.neg.extend([s for s in old_state.neg if s not in action.effect_add])
+        new_state.neg.extend([s for s in action.effect_rem if s not in new_state.neg])
+
         return encode_state(new_state, self.state_map)
 
     def goal_test(self, state: str) -> bool:
@@ -157,9 +195,9 @@ class AirCargoProblem(Problem):
         conditions by ignoring the preconditions required for an action to be
         executed.
         """
-        # TODO implement (see Russell-Norvig Ed-3 10.2.3  or Russell-Norvig Ed-2 11.2)
-        count = 0
-        return count
+        kb = PropKB()
+        kb.tell(decode_state(node.state, self.state_map).pos_sentence())
+        return len([item for item in self.goal if item not in kb.clauses])
 
 
 def air_cargo_p1() -> AirCargoProblem:
